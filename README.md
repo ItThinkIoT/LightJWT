@@ -19,9 +19,13 @@ This is a helper library to create Json Web Token [JWT](https://jwt.io/)
 
 ### TODOs
 
+- [ ] Add examples in **./examples**
+  - [ ] create JWT
+  - [ ] base64 encode
+  - [ ] base64 decode
 - [ ] Verify JWT
-    - [ ] Sign
-    - [ ] Expiration
+  - [ ] Sign
+  - [ ] Expiration
 - [ ] Create JWT with custom fields
 
 MIT license, all text above must be included in any redistribution
