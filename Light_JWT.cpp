@@ -88,7 +88,7 @@ String LightJWT::RS256(
     String payload = "{\"iss\":\"{{ISS}}\",\"aud\":\"{{AUD}}\",\"scope\":\"{{SCOPE}}\",\"iat\":{{IAT}},\"exp\":{{EXP}}}";
 
     unsigned long iat = LightJWT().getCurrentEpochTimeInSeconds(); /* 1657550511 */
-    ;
+    
     payload.replace("{{ISS}}", issuer);
     payload.replace("{{AUD}}", audience);
     payload.replace("{{SCOPE}}", scope);
@@ -151,6 +151,12 @@ String LightJWT::RS256(
         NULL, 0);
 
     auto rsa = mbedtls_pk_rsa(pkContext);
+
+    if (rsa == NULL)
+    {
+        Serial.println("RSA Context is invalid");
+        return String("RSA-CONTEXT_INVALID");
+    }
 
     int keyValid = mbedtls_rsa_check_privkey(rsa);
     // Serial.print("keyValid: ");
