@@ -111,16 +111,6 @@ String LightJWT::getPayload(String issuer,
     return payload;
 }
 
-String LightJWT::RS256(
-    String payload,
-    const char *privateKey)
-{
-    return LightJWT().JWT(
-        JWT_ALG_RS256,
-        payload,
-        privateKey);
-}
-
 String LightJWT::JWT(
     JWT_ALG_type algType,
     String payload,
