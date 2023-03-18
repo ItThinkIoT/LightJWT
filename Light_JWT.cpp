@@ -74,31 +74,67 @@ unsigned long LightJWT::getCurrentEpochTimeInSeconds()
     return now;
 }
 
-String LightJWT::RS256(
-    String issuer,
-    String audience,
-    String scope,
-    unsigned long expirationInSecond,
-    const char *privateKey)
+String LightJWT::getHeader(JWT_ALG_type algType)
 {
-    /* Header */
-    String header = LightJWT().base64UrlEncodeRaw(RS_256_HEADER);
+    String header = "{\"alg\":\"{{ALG}}\",\"typ\":\"JWT\"}";
+    switch (algType)
+    {
+    case JWT_ALG_RS256:
+        header.replace("{{ALG}}", "RS256");
+        break;
+    case JWT_ALG_ES256:
+        header.replace("{{ALG}}", "ES256");
+        break;
+    default:
+        header.replace("{{ALG}}", "RS256");
+        break;
+    }
 
-    /* Payload */
+    return header;
+}
+
+String LightJWT::getPayload(String issuer,
+                            String audience,
+                            String scope,
+                            unsigned long expirationInSecond)
+{
     String payload = "{\"iss\":\"{{ISS}}\",\"aud\":\"{{AUD}}\",\"scope\":\"{{SCOPE}}\",\"iat\":{{IAT}},\"exp\":{{EXP}}}";
 
     unsigned long iat = LightJWT().getCurrentEpochTimeInSeconds(); /* 1657550511 */
-    
+
     payload.replace("{{ISS}}", issuer);
     payload.replace("{{AUD}}", audience);
     payload.replace("{{SCOPE}}", scope);
     payload.replace("{{IAT}}", String(iat));
     payload.replace("{{EXP}}", String((iat + expirationInSecond)));
 
+    return payload;
+}
+
+String LightJWT::RS256(
+    String payload,
+    const char *privateKey)
+{
+    return LightJWT().JWT(
+        JWT_ALG_RS256,
+        payload,
+        privateKey);
+}
+
+String LightJWT::JWT(
+    JWT_ALG_type algType,
+    String payload,
+    const char *privateKey)
+{
+    /* Header */
+    String header = LightJWT().base64UrlEncodeRaw(LightJWT()
+                                                      .getHeader(algType));
+
+    /* Payload */
+    payload = LightJWT().base64UrlEncodeRaw(payload);
+
     // Serial.print("--------- Payload: ");
     // Serial.println(payload);
-
-    payload = LightJWT().base64UrlEncodeRaw(payload);
 
     String headerPayload = String(header + "." + payload);
 
@@ -126,6 +162,8 @@ String LightJWT::RS256(
     mbedtls_sha256_update_ret(&sha_ctx, uHeaderPayload, headerPayloadSize);
     mbedtls_sha256_finish_ret(&sha_ctx, sha256_b64h_b64p);
 
+    mbedtls_sha256_free(&sha_ctx);
+
     // Serial.print("sha256_b64h_b64p: ");
     // Serial.println((char *)(sha256_b64h_b64p));
     // Serial.println(LightJWT().base64UrlEncode((char *)(sha256_b64h_b64p)));
@@ -150,64 +188,89 @@ String LightJWT::RS256(
         privateKeySize + 1,
         NULL, 0);
 
-    auto rsa = mbedtls_pk_rsa(pkContext);
+    // auto ecContext = mbedtls_pk_ec(pkContext);
 
-    if (rsa == NULL)
+    String sign;
+
+    switch (algType)
     {
-        Serial.println("RSA Context is invalid");
-        return String("RSA-CONTEXT_INVALID");
+    case JWT_ALG_RS256:
+    {
+        auto rsa = mbedtls_pk_rsa(pkContext);
+
+        if (rsa == NULL)
+        {
+            // Serial.println("RSA Context is invalid");
+            return String("INVALID-RSA-CONTEXT");
+        }
+
+        int keyValid = mbedtls_rsa_check_privkey(rsa);
+        // Serial.print("keyValid: ");
+        // Serial.println(keyValid);
+        if (keyValid != 0)
+            return String("INVALID-PRIVATE-KEY");
+
+        // Serial.println("Encrypting sha256_b64h_b64p...");
+        unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
+        int success = mbedtls_rsa_pkcs1_sign(rsa, NULL, NULL, MBEDTLS_RSA_PRIVATE, MBEDTLS_MD_SHA256, 32, sha256_b64h_b64p, buf);
+        // Serial.print("Encrypted? ");
+        // Serial.println(success);
+        if (success != 0)
+            return String("CAN-NOT-SIGN");
+
+        unsigned char signature[LightJWT().encode_base64_length(rsa->len)];
+
+        LightJWT().encode_base64(buf, rsa->len, signature);
+
+        // Serial.print("signature(b64): ");
+        // Serial.println((char *)signature);
+
+        sign = String((char *)signature);
+
+        mbedtls_rsa_free(rsa);
+        mbedtls_pk_free(&pkContext);
+
+        break;
+    }
+    case JWT_ALG_ES256:
+    {
+        auto ecdsa = mbedtls_pk_ec(pkContext);
+
+        if (ecdsa == NULL)
+        {
+            // Serial.println("ECDSA Context is invalid");
+            return String("INVALID-ECDSA-CONTEXT");
+        }
+
+        // Serial.println("Encrypting sha256_b64h_b64p...");
+        unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
+        size_t signatureLength;
+
+        int success = mbedtls_ecdsa_write_signature(ecdsa, MBEDTLS_MD_SHA256, sha256_b64h_b64p, 32, buf, &signatureLength, NULL, NULL);
+
+        // Serial.print("Encrypted? ");
+        // Serial.println(success);
+        if (success != 0)
+            return String("CAN-NOT-SIGN");
+
+        unsigned char signature[LightJWT().encode_base64_length(signatureLength)];
+
+        LightJWT().encode_base64(buf, signatureLength, signature);
+
+        // Serial.print("signature(b64): ");
+        // Serial.println((char *)signature);
+
+        sign = String((char *)signature);
+
+        mbedtls_ecdsa_free(ecdsa);
+        mbedtls_pk_free(&pkContext);
+
+        break;
     }
 
-    int keyValid = mbedtls_rsa_check_privkey(rsa);
-    // Serial.print("keyValid: ");
-    // Serial.println(keyValid);
-    if (keyValid != 0)
-        return String("INVALID-PRIVATE-KEY");
-
-    // Serial.println("Encrypting sha256_b64h_b64p...");
-    unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
-    int success = mbedtls_rsa_pkcs1_sign(rsa, NULL, NULL, MBEDTLS_RSA_PRIVATE, MBEDTLS_MD_SHA256, 32, sha256_b64h_b64p, buf);
-    // Serial.print("Encrypted? ");
-    // Serial.println(success);
-    if (success != 0)
-        return String("CAN-NOT-SIGN");
-
-    // Serial.print("buf: ");
-    // Serial.println((char *)buf);
-
-    // Serial.print("(rsa)->len: ");
-    // Serial.println((rsa)->len);
-
-    /* signature: buf.slice(0,rsa->len) */
-    // char signature[(rsa)->len] = {0};
-    // std::copy(buf, (buf + 256), signature);
-    // size_t i;
-    // for (i = 0; i < rsa->len; i++)
-    // {
-    //     Serial.print(buf[i]);
-    //     Serial.print(",");
-    //     signature[i] = buf[i];
-    // }
-
-    // Serial.println("--------");
-    // Serial.print("signature: ");
-    // Serial.println(signature);
-    // Serial.println("--------");
-
-    unsigned char signature[LightJWT().encode_base64_length(rsa->len)];
-
-    LightJWT().encode_base64(buf, rsa->len, signature);
-
-    // Serial.print("signature(b64): ");
-    // Serial.println((char *)signature);
-
-    String sign = String((char *)signature);
-
-    mbedtls_sha256_free(&sha_ctx);
-    mbedtls_rsa_free(rsa);
-    mbedtls_pk_free(&pkContext);
-
-    // Serial.println("-------------------");
+    default:
+        return String("INVALID-ALG-TYPE");
+    }
 
     return String(headerPayload + "." + sign);
 }

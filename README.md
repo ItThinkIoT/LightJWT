@@ -5,6 +5,7 @@ This is a helper library to create Json Web Token [JWT](https://jwt.io/)
 ### Suported Algorithms
   
 - RS256
+- ES256
 
 ### Features
 

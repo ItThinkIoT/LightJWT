@@ -11,13 +11,21 @@
 #include "mbedtls/sha256.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/rsa.h"
+#include "mbedtls/ecdsa.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-#define RS_256_HEADER "{\"alg\":\"RS256\",\"typ\":\"JWT\"}"
+    enum JWT_ALG_type
+    {
+        JWT_ALG_RS256,
+        JWT_ALG_ES256
+    };
+
+    // #define RS_256_HEADER "{\"alg\":\"RS256\",\"typ\":\"JWT\"}" /* RSA256 */
+    // #define ES_256_HEADER "{\"alg\":\"ES256\",\"typ\":\"JWT\"}" /* ECDSA256 */
 
 #define BASE64_URL
 
@@ -25,12 +33,28 @@ extern "C"
     {
     public:
         String base64UrlEncodeRaw(String textToEncode);
-        static String RS256(
+
+        static String getHeader(JWT_ALG_type algType);
+
+        static String getPayload(
             String issuer,
             String audience,
             String scope,
-            unsigned long expirationInSecond,
+            unsigned long expirationInSecond);
+
+        static String JWT(
+            JWT_ALG_type algType,
+            String payload,
             const char *privateKey);
+
+        static String RS256(
+            String payload,
+            const char *privateKey);
+
+        static String ES256(
+            String payload,
+            const char *privateKey);
+
         static unsigned long getCurrentEpochTimeInSeconds();
 
         /* binary_to_base64:
