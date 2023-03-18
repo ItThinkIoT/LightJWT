@@ -24,9 +24,6 @@ extern "C"
         JWT_ALG_ES256
     };
 
-    // #define RS_256_HEADER "{\"alg\":\"RS256\",\"typ\":\"JWT\"}" /* RSA256 */
-    // #define ES_256_HEADER "{\"alg\":\"ES256\",\"typ\":\"JWT\"}" /* ECDSA256 */
-
 #define BASE64_URL
 
     class LightJWT
@@ -34,24 +31,19 @@ extern "C"
     public:
         String base64UrlEncodeRaw(String textToEncode);
 
+        /* Get Header as stringify JSON by Algorithm */
         static String getHeader(JWT_ALG_type algType);
 
+        /* Get Payload as stringify JSON */
         static String getPayload(
             String issuer,
             String audience,
             String scope,
             unsigned long expirationInSecond);
 
+        /* Generate JWT */
         static String JWT(
             JWT_ALG_type algType,
-            String payload,
-            const char *privateKey);
-
-        static String RS256(
-            String payload,
-            const char *privateKey);
-
-        static String ES256(
             String payload,
             const char *privateKey);
 
