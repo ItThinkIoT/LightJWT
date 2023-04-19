@@ -156,7 +156,7 @@ String LightJWT::JWT(
 
     // Serial.print("sha256_b64h_b64p: ");
     // Serial.println((char *)(sha256_b64h_b64p));
-    // Serial.println(LightJWT().base64UrlEncode((char *)(sha256_b64h_b64p)));
+    // Serial.println(LightJWT().base64UrlEncodeRaw((char *)(sha256_b64h_b64p)));
 
     /* Load Private Key */
     // Serial.print("privateKey: ");
@@ -233,27 +233,49 @@ String LightJWT::JWT(
         }
 
         // Serial.println("Encrypting sha256_b64h_b64p...");
-        unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
+        unsigned char signature[64];
         size_t signatureLength;
+        mbedtls_mpi r, s;
 
-        int success = mbedtls_ecdsa_write_signature(ecdsa, MBEDTLS_MD_SHA256, sha256_b64h_b64p, 32, buf, &signatureLength, NULL, NULL);
+        mbedtls_mpi_init(&r);
+        mbedtls_mpi_init(&s);
 
-        // Serial.print("Encrypted? ");
-        // Serial.println(success);
-        if (success != 0)
+        
+        int ret = mbedtls_ecdsa_sign_det(&ecdsa->grp, &r, &s, &ecdsa->d, sha256_b64h_b64p, 32, MBEDTLS_MD_SHA256);
+        if (ret != 0)
+        {
             return String("CAN-NOT-SIGN");
+        }
 
-        unsigned char signature[LightJWT().encode_base64_length(signatureLength)];
+        // Write the signature in P1363 format
+        mbedtls_mpi_write_binary(&r, signature, mbedtls_mpi_size(&r));
+        mbedtls_mpi_write_binary(&s, signature + mbedtls_mpi_size(&r), mbedtls_mpi_size(&s));
+        signatureLength = mbedtls_mpi_size(&r) + mbedtls_mpi_size(&s);
 
-        LightJWT().encode_base64(buf, signatureLength, signature);
+        /* mbedtls_ecdsa_write_signature writes signature out as DER format */
+        // int success = mbedtls_ecdsa_write_signature(ecdsa, MBEDTLS_MD_SHA256, sha256_b64h_b64p, 32, buf, &signatureLength, NULL, NULL);
+
+        /* Print signature as hex */
+        // Serial.print("signature (hex) (" + String(signatureLength) + ") : [");
+        // for (size_t i = 0; i < signatureLength; i++)
+        // {
+        //     Serial.printf("%02x", signature[i]);
+        // }
+        // Serial.println("]");
+
+        unsigned char _signature[LightJWT().encode_base64_length(signatureLength)];
+
+        LightJWT().encode_base64(signature, signatureLength, _signature);
 
         // Serial.print("signature(b64): ");
-        // Serial.println((char *)signature);
+        // Serial.println((char *)_signature);
 
-        sign = String((char *)signature);
+        sign = String((char *)_signature);
 
         mbedtls_ecdsa_free(ecdsa);
         mbedtls_pk_free(&pkContext);
+        mbedtls_mpi_free(&r);
+        mbedtls_mpi_free(&s);
 
         break;
     }
