@@ -1,5 +1,17 @@
 #include "Light_JWT.h"
 
+mbedtls_entropy_context entropy;
+mbedtls_ctr_drbg_context ctr_drbg;
+
+int f_rng(void *data, unsigned char *output, size_t len)
+{
+    const char *pers = "your_application_name";
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *) pers, strlen(pers));
+    return mbedtls_ctr_drbg_random(&ctr_drbg, output, len);
+}
+
 // base64_encode copied from https://github.com/ReneNyffenegger/cpp-base64
 static const char base64url_chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -134,7 +146,7 @@ String LightJWT::JWT(
     unsigned char sha256_b64h_b64p[32] = {0};
     mbedtls_sha256_context sha_ctx;
     mbedtls_sha256_init(&sha_ctx);
-    mbedtls_sha256_starts_ret(&sha_ctx, 0);
+    mbedtls_sha256_starts(&sha_ctx, 0);
 
     // Serial.print("headerPayload: ");
     // Serial.println(headerPayload);
@@ -149,8 +161,8 @@ String LightJWT::JWT(
     // Serial.print("uHeaderPayload: ");
     // Serial.println((char*)uHeaderPayload);
 
-    mbedtls_sha256_update_ret(&sha_ctx, uHeaderPayload, headerPayloadSize);
-    mbedtls_sha256_finish_ret(&sha_ctx, sha256_b64h_b64p);
+    mbedtls_sha256_update(&sha_ctx, uHeaderPayload, headerPayloadSize);
+    mbedtls_sha256_finish(&sha_ctx, sha256_b64h_b64p);
 
     mbedtls_sha256_free(&sha_ctx);
 
@@ -176,7 +188,7 @@ String LightJWT::JWT(
         &pkContext,
         uPrivateKey,
         privateKeySize + 1,
-        NULL, 0);
+        NULL, 0, f_rng, NULL);
 
     // auto ecContext = mbedtls_pk_ec(pkContext);
 
@@ -202,7 +214,7 @@ String LightJWT::JWT(
 
         // Serial.println("Encrypting sha256_b64h_b64p...");
         unsigned char buf[MBEDTLS_MPI_MAX_SIZE];
-        int success = mbedtls_rsa_pkcs1_sign(rsa, NULL, NULL, MBEDTLS_RSA_PRIVATE, MBEDTLS_MD_SHA256, 32, sha256_b64h_b64p, buf);
+        int success = mbedtls_rsa_pkcs1_sign(rsa, f_rng, NULL, MBEDTLS_MD_SHA256, 32, sha256_b64h_b64p, buf);
         // Serial.print("Encrypted? ");
         // Serial.println(success);
         if (success != 0)
@@ -240,8 +252,7 @@ String LightJWT::JWT(
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
 
-        
-        int ret = mbedtls_ecdsa_sign_det(&ecdsa->grp, &r, &s, &ecdsa->d, sha256_b64h_b64p, 32, MBEDTLS_MD_SHA256);
+        int ret = mbedtls_ecdsa_sign_det_ext(&ecdsa->grp, &r, &s, &ecdsa->d, sha256_b64h_b64p, 32, MBEDTLS_MD_SHA256, f_rng, NULL);
         if (ret != 0)
         {
             return String("CAN-NOT-SIGN");

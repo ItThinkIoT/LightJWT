@@ -8,10 +8,13 @@
 #include "time.h"
 #include <stdint.h>
 
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
 #include "mbedtls/sha256.h"
 #include "mbedtls/pk.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
 
 #ifdef __cplusplus
 extern "C"
