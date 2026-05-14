@@ -1,0 +1,19 @@
+{
+    "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+    "name": "LightJWT@ithtink",
+    "version": "1.1.0",
+    "keywords": "iot JWT Cryptography",
+    "description": "This is a light library for easyly generate JWT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ItThinkIoT/iot-protocol-cpp"
+    },
+    "authors": {
+        "name": "Guilherme Gregorini",
+        "email": "guilherme@itthink.io",
+        "url": "https://www.github.com/Guihgo"
+    },
+    "dependencies": {},
+    "frameworks": "arduino",
+    "platforms": "espressif8266, espressif32"
+}
